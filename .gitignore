@@ -1,4 +1,12 @@
+# Ansible
 .vault_pass
 *.retry
 __pycache__/
 .vagrant/
+
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/.terraform.lock.hcl
+terraform/*.tfvars
