@@ -1,0 +1,17 @@
+---
+# Cloud-1 — Automated deployment of Inception on a remote server
+# Roles execute in order: prepare server -> install docker -> secure -> deploy app
+# Subject: "deployment must be fully automated"
+
+- name: Deploy Cloud-1 infrastructure
+  hosts: webservers
+  become: true       # Run as root (subject: student must connect as root)
+  vars_files:
+    - group_vars/all.yml   # Public variables (domain, ports, db name)
+    - vault.yml            # Encrypted secrets (passwords)
+
+  roles:
+    - base          # Step 1: Update system, install prerequisites
+    - docker        # Step 2: Install Docker + Compose + Python SDK
+    - firewall      # Step 3: UFW — allow only ports 22/80/443
+    - wordpress     # Step 4: Deploy full stack via docker-compose

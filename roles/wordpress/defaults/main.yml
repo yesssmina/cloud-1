@@ -1,0 +1,4 @@
+---
+# Internal ports (not exposed to internet, only used between containers)
+wordpress_port: 8080
+phpmyadmin_port: 8081

@@ -1,0 +1,77 @@
+---
+# Step 1: Create project directory
+- name: Create project directory
+  file:
+    path: /opt/wordpress
+    state: directory
+    mode: '0755'
+
+# Step 2: Deploy docker-compose
+- name: Deploy docker-compose file
+  template:
+    src: docker-compose.yml.j2
+    dest: /opt/wordpress/docker-compose.yml
+    mode: '0600'
+
+# Step 3: Check if TLS certificate already exists
+- name: Check if TLS certificate already exists
+  stat:
+    path: /opt/wordpress/certbot_check
+  register: cert_exists
+
+# Step 4a: If NO cert yet — deploy HTTP config for Certbot challenge
+- name: Deploy initial Nginx configuration (HTTP only)
+  template:
+    src: nginx_initial.conf.j2
+    dest: /opt/wordpress/nginx.conf
+    mode: '0644'
+  when: not cert_exists.stat.exists
+
+# Step 4b: If cert already exists — deploy HTTPS config directly
+- name: Deploy Nginx configuration (HTTPS)
+  template:
+    src: nginx.conf.j2
+    dest: /opt/wordpress/nginx.conf
+    mode: '0644'
+  when: cert_exists.stat.exists
+
+# Step 5: Start all containers
+- name: Start containers with Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: /opt/wordpress
+    state: present
+
+# Step 6: Wait for Nginx to be ready
+- name: Wait for Nginx to be ready
+  wait_for:
+    port: 80
+    delay: 5
+    timeout: 60
+
+# Step 7: Obtain TLS certificate (only if not already present)
+- name: Obtain TLS certificate with Certbot
+  shell: >
+    docker compose -f /opt/wordpress/docker-compose.yml --profile certbot run --rm certbot certonly
+    --webroot --webroot-path=/var/www/certbot
+    --email {{ certbot_email }}
+    --agree-tos --no-eff-email
+    -d {{ domain_name }}
+    && touch /opt/wordpress/certbot_check
+  args:
+    chdir: /opt/wordpress
+    creates: /opt/wordpress/certbot_check
+  when: not cert_exists.stat.exists
+
+# Step 8: Switch to HTTPS config after getting cert (first run only)
+- name: Deploy final Nginx configuration (HTTPS)
+  template:
+    src: nginx.conf.j2
+    dest: /opt/wordpress/nginx.conf
+    mode: '0644'
+  when: not cert_exists.stat.exists
+  notify: Restart Nginx
+
+# Step 9: Restart Nginx only if config changed (first run only)
+- name: Restart Nginx to apply HTTPS
+  shell: docker restart nginx
+  when: not cert_exists.stat.exists

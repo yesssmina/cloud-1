@@ -1,0 +1,35 @@
+---
+# Install Docker engine
+- name: Install Docker
+  apt:
+    name:
+      - docker.io
+    state: present
+
+# Docker Compose V2 plugin — required by Ansible module docker_compose_v2
+# V1 (standalone docker-compose) is deprecated, V2 is a Docker CLI plugin
+- name: Create Docker CLI plugins directory
+  file:
+    path: /usr/local/lib/docker/cli-plugins
+    state: directory
+    mode: '0755'
+
+- name: Download Docker Compose V2 plugin
+  get_url:
+    url: https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64
+    dest: /usr/local/lib/docker/cli-plugins/docker-compose
+    mode: '0755'
+
+# Python SDK — needed by Ansible to communicate with Docker
+- name: Install Docker SDK for Python
+  pip:
+    name:
+      - docker
+    state: present
+
+# Start Docker and enable on boot (subject: site must survive reboot)
+- name: Start and enable Docker service
+  service:
+    name: docker
+    state: started
+    enabled: true
