@@ -1,0 +1,65 @@
+---
+# This role handles Nginx reverse proxy configuration and TLS certificates
+# Nginx runs as a container in the docker-compose stack
+
+# Step 1: Check if TLS certificate already exists
+- name: Check if TLS certificate already exists
+  stat:
+    path: /opt/wordpress/certbot_check
+  register: cert_exists
+
+# Step 2a: If NO cert — deploy HTTP config for Certbot challenge
+- name: Deploy initial Nginx configuration (HTTP only)
+  template:
+    src: nginx_initial.conf.j2
+    dest: /opt/wordpress/nginx.conf
+    mode: '0644'
+  when: not cert_exists.stat.exists
+
+# Step 2b: If cert exists — deploy HTTPS config directly
+- name: Deploy Nginx configuration (HTTPS)
+  template:
+    src: nginx.conf.j2
+    dest: /opt/wordpress/nginx.conf
+    mode: '0644'
+  when: cert_exists.stat.exists
+
+# Step 3: Start all containers (docker-compose was deployed by wordpress role)
+- name: Start containers with Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: /opt/wordpress
+    state: present
+
+# Step 4: Wait for Nginx to be ready
+- name: Wait for Nginx to be ready
+  wait_for:
+    port: 80
+    delay: 5
+    timeout: 60
+
+# Step 5: Obtain TLS certificate (first run only)
+- name: Obtain TLS certificate with Certbot
+  shell: >
+    docker compose -f /opt/wordpress/docker-compose.yml --profile certbot run --rm certbot certonly
+    --webroot --webroot-path=/var/www/certbot
+    --email {{ certbot_email }}
+    --agree-tos --no-eff-email
+    -d {{ domain_name }}
+    && touch /opt/wordpress/certbot_check
+  args:
+    chdir: /opt/wordpress
+    creates: /opt/wordpress/certbot_check
+  when: not cert_exists.stat.exists
+
+# Step 6: Switch to HTTPS config after getting cert (first run only)
+- name: Deploy final Nginx configuration (HTTPS)
+  template:
+    src: nginx.conf.j2
+    dest: /opt/wordpress/nginx.conf
+    mode: '0644'
+  when: not cert_exists.stat.exists
+
+# Step 7: Restart Nginx to load SSL (first run only)
+- name: Restart Nginx to apply HTTPS
+  shell: docker restart nginx
+  when: not cert_exists.stat.exists
