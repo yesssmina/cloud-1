@@ -66,6 +66,34 @@ To view the rendered file on the server:
       wordpress/            Docker-compose stack deployment
       nginx/                Reverse proxy + TLS + cert auto-renewal
 
+## Multi-Server Deployment
+
+To deploy on additional servers:
+
+1. Add the server IP to inventory.ini:
+
+   [webservers]
+   51.15.216.227  ansible_user=root  ansible_ssh_private_key_file=~/.ssh/id_ed25519
+   NEW.IP.HERE    ansible_user=root  ansible_ssh_private_key_file=~/.ssh/id_ed25519
+
+2. Create a host_vars file for the new server:
+
+   host_vars/NEW.IP.HERE.yml
+
+   With content:
+
+   domain_name: your-domain.duckdns.org
+   certbot_email: your-email@example.com
+
+3. Point the new DuckDNS domain to the new server IP
+
+4. Deploy:
+
+   ansible-playbook playbook.yml
+
+Ansible deploys on all servers in parallel. Each server gets its own
+domain and TLS certificate. Database credentials are shared via group_vars.
+
 ## Security
 
 - Only ports 22, 80, 443 exposed (UFW + Scaleway security group)
