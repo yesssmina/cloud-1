@@ -63,3 +63,15 @@
 - name: Restart Nginx to apply HTTPS
   shell: docker restart nginx
   when: not cert_exists.stat.exists
+
+
+
+# Auto-renew TLS certificate daily at 3:30 AM
+# certbot renew checks if cert expires within 30 days — if not, does nothing (idempotent)
+# Let's Encrypt certificates expire after 90 days
+- name: Setup automatic certificate renewal
+  cron:
+    name: "Renew Let's Encrypt certificate"
+    minute: "30"
+    hour: "3"
+    job: "docker compose -f /opt/wordpress/docker-compose.yml --profile certbot run --rm certbot renew --quiet && docker restart nginx"
